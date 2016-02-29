@@ -296,6 +296,10 @@ class HaproxyNSDriver(agent_device_driver.AgentDeviceDriver):
                                   '-c', gratuitous_arp,
                                   ip['ip_address']]
                     ip_wrapper.netns.execute(cmd_arping, check_exit_code=False)
+        cmd = ['ip', 'link', 'set', interface_name, 'mtu', '1450']
+        ip_wrapper = ip_lib.IPWrapper(namespace=namespace)
+        ip_wrapper.netns.execute(cmd, check_exit_code=False)
+
 
     def _unplug(self, namespace, port_id):
         port_stub = {'id': port_id}
