@@ -904,21 +904,6 @@ class LbaasListenerTests(ListenerTestBase):
                               context.get_admin_context(),
                               {'listener': listener_data})
 
-    def test_get_service_url(self):
-        # Format: <servicename>://<region>/<resource>/<object_id>
-        cfg.CONF.set_override('service_name',
-                              'lbaas',
-                              'service_auth')
-        cfg.CONF.set_override('region',
-                              'RegionOne',
-                              'service_auth')
-        listner = {
-            'loadbalancer_id': self.lb_id
-        }
-        self.assertEqual(
-            'lbaas://RegionOne/LOADBALANCER/{0}'.format(self.lb_id),
-            self.plugin._get_service_url(listner))
-
     def test_create_listener_with_tls_invalid_container(self, **extras):
         default_tls_container_ref = uuidutils.generate_uuid()
         cfg.CONF.set_override('service_name',
@@ -956,7 +941,7 @@ class LbaasListenerTests(ListenerTestBase):
                               {'listener': listener_data})
             rm_consumer_mock.assert_called_once_with(
                 listener_data['default_tls_container_ref'],
-                'lbaas://RegionOne/LOADBALANCER/{0}'.format(self.lb_id))
+                self.lb_id)
 
     def test_create_listener_with_tls(self, **extras):
         default_tls_container_ref = uuidutils.generate_uuid()
@@ -1982,8 +1967,42 @@ class LbaasHealthMonitorTests(HealthMonitorTestBase):
             resp, body = self._update_healthmonitor_api(hm_id, data)
             self.assertEqual(webob.exc.HTTPBadRequest.code, resp.status_int)
 
-    def test_create_health_monitor_with_http_method_invalid(self):
+    def test_create_health_monitor_with_type_invalid(self):
         data = {'healthmonitor': {'type': 1,
+                                  'delay': 1,
+                                  'timeout': 1,
+                                  'max_retries': 2,
+                                  'admin_state_up': True,
+                                  'tenant_id': self._tenant_id,
+                                  'pool_id': self.pool_id}}
+        resp, body = self._create_healthmonitor_api(data)
+        self.assertEqual(webob.exc.HTTPBadRequest.code, resp.status_int)
+
+    def test_update_health_monitor_with_type_invalid(self):
+        with self.healthmonitor(pool_id=self.pool_id) as healthmonitor:
+            hm_id = healthmonitor['healthmonitor']['id']
+            data = {'healthmonitor': {'type': 1,
+                                      'delay': 1,
+                                      'timeout': 1,
+                                      'max_retries': 2,
+                                      'admin_state_up': False}}
+            resp, body = self._update_healthmonitor_api(hm_id, data)
+            self.assertEqual(webob.exc.HTTPBadRequest.code, resp.status_int)
+
+    def test_create_health_monitor_with_http_method_non_default(self):
+        data = {'healthmonitor': {'type': 'HTTP',
+                                  'http_method': 'POST',
+                                  'delay': 2,
+                                  'timeout': 1,
+                                  'max_retries': 2,
+                                  'tenant_id': self._tenant_id,
+                                  'pool_id': self.pool_id}}
+        resp, body = self._create_healthmonitor_api(data)
+        self.assertEqual(201, resp.status_int)
+
+    def test_create_health_monitor_with_http_method_invalid(self):
+        data = {'healthmonitor': {'type': 'HTTP',
+                                  'http_method': 'FOO',
                                   'delay': 1,
                                   'timeout': 1,
                                   'max_retries': 2,
@@ -1996,13 +2015,25 @@ class LbaasHealthMonitorTests(HealthMonitorTestBase):
     def test_update_health_monitor_with_http_method_invalid(self):
         with self.healthmonitor(pool_id=self.pool_id) as healthmonitor:
             hm_id = healthmonitor['healthmonitor']['id']
-            data = {'healthmonitor': {'type': 1,
+            data = {'healthmonitor': {'type': 'HTTP',
+                                      'http_method': 'FOO',
                                       'delay': 1,
                                       'timeout': 1,
                                       'max_retries': 2,
                                       'admin_state_up': False}}
             resp, body = self._update_healthmonitor_api(hm_id, data)
             self.assertEqual(webob.exc.HTTPBadRequest.code, resp.status_int)
+
+    def test_create_health_monitor_with_url_path_non_default(self):
+        data = {'healthmonitor': {'type': 'HTTP',
+                                  'url_path': '/a/b_c-d/e%20f',
+                                  'delay': 2,
+                                  'timeout': 1,
+                                  'max_retries': 2,
+                                  'tenant_id': self._tenant_id,
+                                  'pool_id': self.pool_id}}
+        resp, body = self._create_healthmonitor_api(data)
+        self.assertEqual(201, resp.status_int)
 
     def test_create_health_monitor_with_url_path_invalid(self):
         data = {'healthmonitor': {'type': 'HTTP',
